@@ -17,30 +17,41 @@ public class LoginServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String email    = req.getParameter("email");
+        String loginField = req.getParameter("email"); // Can be email or username
+        String username = req.getParameter("username"); // Alternative parameter
         String password = req.getParameter("password");
 
-        if (email == null || password == null || email.trim().isEmpty() || password.trim().isEmpty()) {
-            req.setAttribute("error", "Email and password required.");
+        // Determine if user is logging in with email or username
+        String actualLoginField = (username != null && !username.trim().isEmpty()) ? username : loginField;
+        boolean isEmail = actualLoginField != null && actualLoginField.contains("@");
+
+        if (actualLoginField == null || password == null
+                || actualLoginField.trim().isEmpty() || password.trim().isEmpty()) {
+            req.setAttribute("error", "Login credentials required.");
             req.getRequestDispatcher("/login.jsp").forward(req, resp);
             return;
         }
 
-        String sql = "SELECT id, name, password FROM users WHERE email = ?";
-        try (Connection c = DBUtil.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        // SQL query supports both email and username login
+        String sql = isEmail
+                ? "SELECT id, name, email, password FROM users WHERE LOWER(email) = LOWER(?)"
+                : "SELECT id, name, email, password FROM users WHERE LOWER(username) = LOWER(?)";
 
-            ps.setString(1, email);
+        try (Connection c = DBUtil.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+
+            ps.setString(1, actualLoginField.trim());
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     String dbPass = rs.getString("password");
-                    if (dbPass.equals(password)) { // TODO: use hashed password compare
+                    if (dbPass.equals(password)) { // TODO: use hashed comparison
                         int userId = rs.getInt("id");
                         String name = rs.getString("name");
+                        String email = rs.getString("email");
 
                         HttpSession session = req.getSession();
                         session.setAttribute("userId", userId);
                         session.setAttribute("userName", name);
+                        session.setAttribute("userEmail", email);
 
                         resp.sendRedirect(req.getContextPath() + "/");
                         return;
@@ -51,7 +62,7 @@ public class LoginServlet extends HttpServlet {
             throw new ServletException(e);
         }
 
-        req.setAttribute("error", "Invalid email or password.");
+        req.setAttribute("error", "Invalid login credentials.");
         req.getRequestDispatcher("/login.jsp").forward(req, resp);
     }
 }
