@@ -8,7 +8,6 @@ import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.IOException;
 import java.sql.*;
-import java.time.Instant;
 
 @WebServlet("/ResetPasswordServlet")
 public class ResetPasswordServlet extends HttpServlet {
@@ -19,8 +18,21 @@ public class ResetPasswordServlet extends HttpServlet {
         String password = req.getParameter("password");
         String confirm = req.getParameter("confirmPassword");
 
-        if (token == null || password == null || confirm == null || !password.equals(confirm)) {
-            req.setAttribute("error", "Passwords do not match or invalid request.");
+        if (token == null || token.trim().isEmpty()) {
+            req.setAttribute("error", "Invalid reset link.");
+            req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
+            return;
+        }
+
+        if (password == null || confirm == null || password.trim().isEmpty()) {
+            req.setAttribute("error", "Password is required.");
+            req.setAttribute("token", token);
+            req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
+            return;
+        }
+
+        if (!password.equals(confirm)) {
+            req.setAttribute("error", "Passwords do not match.");
             req.setAttribute("token", token);
             req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
             return;
@@ -36,11 +48,11 @@ public class ResetPasswordServlet extends HttpServlet {
         try (Connection conn = DBUtil.getConnection()) {
             conn.setAutoCommit(false);
 
-            // lock the token row to avoid race conditions
             PreparedStatement ps = conn.prepareStatement(
                     "SELECT id, user_id, expires_at, used FROM password_reset_tokens WHERE token = ? FOR UPDATE");
             ps.setString(1, token);
             ResultSet rs = ps.executeQuery();
+            
             if (!rs.next()) {
                 conn.rollback();
                 req.setAttribute("error", "Invalid or expired reset link.");
@@ -53,34 +65,48 @@ public class ResetPasswordServlet extends HttpServlet {
             boolean used = rs.getBoolean("used");
             Timestamp expiresAt = rs.getTimestamp("expires_at");
 
-            if (used || expiresAt.toInstant().isBefore(Instant.now())) {
+            if (used) {
                 conn.rollback();
-                req.setAttribute("error", "This reset link has expired or already been used.");
+                req.setAttribute("error", "This reset link has already been used. Please request a new one.");
+                req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
+                return;
+            }
+            
+            if (expiresAt.getTime() < System.currentTimeMillis()) {
+                conn.rollback();
+                req.setAttribute("error", "This reset link has expired. Please request a new one.");
                 req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
                 return;
             }
 
-            // Hash and update password
+            // Hash the password and update in the 'password' column
             String hashed = PasswordUtil.hash(password);
-            PreparedStatement updUser = conn.prepareStatement("UPDATE users SET password_hash = ? WHERE id = ?");
+            PreparedStatement updUser = conn.prepareStatement("UPDATE users SET password = ? WHERE id = ?");
             updUser.setString(1, hashed);
             updUser.setInt(2, userId);
-            updUser.executeUpdate();
+            int updated = updUser.executeUpdate();
 
-            // mark token used
+            if (updated == 0) {
+                conn.rollback();
+                req.setAttribute("error", "User not found.");
+                req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
+                return;
+            }
+
+            // Mark token as used
             PreparedStatement mark = conn.prepareStatement("UPDATE password_reset_tokens SET used = true WHERE id = ?");
             mark.setInt(1, tokenId);
             mark.executeUpdate();
 
             conn.commit();
 
-            // forward to success page or login
-            req.setAttribute("message", "Password updated. You can now log in.");
+            req.setAttribute("message", "Password updated successfully! You can now log in with your new password.");
             req.getRequestDispatcher("/login.jsp").forward(req, resp);
 
         } catch (Exception e) {
             e.printStackTrace();
-            req.setAttribute("error", "Server error.");
+            req.setAttribute("error", "Server error. Please try again later.");
+            req.setAttribute("token", token);
             req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
         }
     }

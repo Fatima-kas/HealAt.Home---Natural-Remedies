@@ -5,7 +5,6 @@ com\homeremedies\util\PasswordUtil.class
 com\homeremedies\homeremedies\resources\JakartaEE8Resource.class
 com\homeremedies\util\TokenUtil.class
 com\homeremedies\servlets\LoginServlet.class
-com\homeremedies\servlets\ResestPasswordServlet.class
 com\homeremedies\util\DBUtil.class
 com\homeremedies\servlets\AddRemedyServlet.class
 com\homeremedies\servlets\ForgotPasswordServlet.class

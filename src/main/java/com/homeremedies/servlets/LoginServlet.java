@@ -1,6 +1,7 @@
 package com.homeremedies.servlets;
 
 import com.homeremedies.util.DBUtil;
+import com.homeremedies.util.PasswordUtil;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
@@ -17,11 +18,10 @@ public class LoginServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String loginField = req.getParameter("email"); // Can be email or username
-        String username = req.getParameter("username"); // Alternative parameter
+        String loginField = req.getParameter("email");
+        String username = req.getParameter("username");
         String password = req.getParameter("password");
 
-        // Determine if user is logging in with email or username
         String actualLoginField = (username != null && !username.trim().isEmpty()) ? username : loginField;
         boolean isEmail = actualLoginField != null && actualLoginField.contains("@");
 
@@ -32,7 +32,6 @@ public class LoginServlet extends HttpServlet {
             return;
         }
 
-        // SQL query supports both email and username login
         String sql = isEmail
                 ? "SELECT id, name, email, password FROM users WHERE LOWER(email) = LOWER(?)"
                 : "SELECT id, name, email, password FROM users WHERE LOWER(username) = LOWER(?)";
@@ -43,7 +42,18 @@ public class LoginServlet extends HttpServlet {
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     String dbPass = rs.getString("password");
-                    if (dbPass.equals(password)) { // TODO: use hashed comparison
+                    
+                    // Try BCrypt verification first (for hashed passwords)
+                    // If that fails, try plain text comparison (for old passwords)
+                    boolean isValid = false;
+                    try {
+                        isValid = PasswordUtil.verify(password, dbPass);
+                    } catch (Exception e) {
+                        // If BCrypt fails, it might be a plain text password
+                        isValid = dbPass.equals(password);
+                    }
+                    
+                    if (isValid) {
                         int userId = rs.getInt("id");
                         String name = rs.getString("name");
                         String email = rs.getString("email");

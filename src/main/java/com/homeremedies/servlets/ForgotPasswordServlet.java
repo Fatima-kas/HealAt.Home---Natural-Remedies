@@ -10,7 +10,6 @@ import javax.servlet.http.*;
 import java.io.IOException;
 import java.sql.*;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 
 @WebServlet("/ForgotPasswordServlet")
 public class ForgotPasswordServlet extends HttpServlet {
@@ -32,16 +31,16 @@ public class ForgotPasswordServlet extends HttpServlet {
             psUser.setString(1, email);
             ResultSet rsUser = psUser.executeQuery();
             if (!rsUser.next()) {
-                // Don't reveal existence — respond with generic message
+                // Don't reveal existence – respond with generic message
                 resp.getWriter().write("{\"status\":\"ok\",\"message\":\"If an account exists with this email, a reset link has been sent.\"}");
                 return;
             }
 
             int userId = rsUser.getInt("id");
 
-            // Insert token
+            // Insert token - using server's local time (no timezone conversion)
             String token = TokenUtil.generateToken(32);
-            LocalDateTime expiresAt = LocalDateTime.now(ZoneId.of("UTC")).plusMinutes(TOKEN_EXPIRY_MINUTES);
+            LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(TOKEN_EXPIRY_MINUTES);
 
             PreparedStatement insert = conn.prepareStatement(
                     "INSERT INTO password_reset_tokens (user_id, token, expires_at, used) VALUES (?, ?, ?, ?)");
@@ -54,23 +53,30 @@ public class ForgotPasswordServlet extends HttpServlet {
             // Build reset link
             String resetLink = buildAppUrl(req) + "/reset-password.jsp?token=" + token;
 
-            String subject = "Reset your password";
-            String body = "<p>To reset your password click the link below (valid for " + TOKEN_EXPIRY_MINUTES + " minutes):</p>"
-                    + "<p><a href=\"" + resetLink + "\">Reset password</a></p>"
-                    + "<p>If you did not request this, please ignore this message.</p>";
+            String subject = "Reset your password - Health@Home";
+            String body = "<html><body style='font-family: Arial, sans-serif;'>"
+                    + "<h2 style='color: #667eea;'>Password Reset Request</h2>"
+                    + "<p>You requested to reset your password. Click the button below to proceed:</p>"
+                    + "<p style='margin: 30px 0;'>"
+                    + "<a href=\"" + resetLink + "\" style='background-color: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;'>Reset Password</a>"
+                    + "</p>"
+                    + "<p style='color: #666; font-size: 14px;'>This link will expire in " + TOKEN_EXPIRY_MINUTES + " minutes.</p>"
+                    + "<p style='color: #666; font-size: 14px;'>If you didn't request this, please ignore this email.</p>"
+                    + "<hr style='margin-top: 30px; border: none; border-top: 1px solid #eee;'>"
+                    + "<p style='color: #999; font-size: 12px;'>Health@Home - Natural Remedies</p>"
+                    + "</body></html>";
 
-            // Send email (synchronous). Ensure EmailUtil is configured with SMTP credentials.
+            // Send email
             EmailUtil.sendEmail(email, subject, body);
 
             resp.getWriter().write("{\"status\":\"ok\",\"message\":\"If an account exists with this email, a reset link has been sent.\"}");
         } catch (Exception e) {
             e.printStackTrace();
-            resp.getWriter().write("{\"status\":\"error\",\"message\":\"Server error\"}");
+            resp.getWriter().write("{\"status\":\"error\",\"message\":\"Server error: " + e.getMessage() + "\"}");
         }
     }
 
     private String buildAppUrl(HttpServletRequest req) {
-        // prefer forwarded headers if behind proxy; adapt if necessary
         String scheme = req.getScheme();
         String serverName = req.getServerName();
         int port = req.getServerPort();
