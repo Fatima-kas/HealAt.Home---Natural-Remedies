@@ -1,6 +1,9 @@
 com\homeremedies\util\EmailUtil$1.class
 com\homeremedies\servlets\FavoritesServlet.class
+com\homeremedies\servlets\ResetPasswordServlet.class
+com\homeremedies\util\PasswordUtil.class
 com\homeremedies\homeremedies\resources\JakartaEE8Resource.class
+com\homeremedies\util\TokenUtil.class
 com\homeremedies\servlets\LoginServlet.class
 com\homeremedies\servlets\ResestPasswordServlet.class
 com\homeremedies\util\DBUtil.class

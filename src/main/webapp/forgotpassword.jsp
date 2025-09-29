@@ -1,18 +1,35 @@
-<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Forgot Password</title>
-</head>
-<body>
-    <h2>Forgot Password</h2>
+<form id="forgotForm">
+  <label>Email: <input type="email" name="email" id="email" required></label>
+  <button type="submit">Send reset link</button>
+</form>
 
-    <form action="ForgotPasswordServlet" method="post">
-        <label for="email">Enter your registered email:</label><br>
-        <input type="email" name="email" required /><br><br>
+<div id="msg"></div>
 
-        <input type="submit" value="Send Reset Link" />
-    </form>
+<script>
+document.getElementById('forgotForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  var email = document.getElementById('email').value;
+  var params = new URLSearchParams();
+  params.append('email', email);
 
-</body>
-</html>
+  fetch('${pageContext.request.contextPath}/ForgotPasswordServlet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString()
+  }).then(function(res){ return res.json(); })
+    .then(function(data){
+      var el = document.getElementById('msg');
+      if(data.status === 'ok'){
+        el.style.color = 'green';
+        el.innerText = data.message;
+      } else {
+        el.style.color = 'red';
+        el.innerText = data.message || 'Error occurred';
+      }
+    }).catch(function(err){
+      var el = document.getElementById('msg');
+      el.style.color = 'red';
+      el.innerText = 'Server error';
+    });
+});
+</script>

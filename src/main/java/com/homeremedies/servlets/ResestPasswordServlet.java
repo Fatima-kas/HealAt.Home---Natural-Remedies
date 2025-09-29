@@ -1,70 +1,87 @@
 package com.homeremedies.servlets;
 
+import com.homeremedies.util.DBUtil;
+import com.homeremedies.util.PasswordUtil;
+
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.*;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.sql.*;
+import java.time.Instant;
 
 @WebServlet("/ResetPasswordServlet")
 public class ResestPasswordServlet extends HttpServlet {
 
-    private static final long serialVersionUID = 1L;
-
-    // ✅ Change DB details
-    private static final String JDBC_URL = "jdbc:mysql://localhost:3306/homeremedies";
-    private static final String JDBC_USER = "root";
-    private static final String JDBC_PASS = "root";
-
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String token = req.getParameter("token");
+        String password = req.getParameter("password");
+        String confirm = req.getParameter("confirmPassword");
 
-        String token = request.getParameter("token");
-        String password = request.getParameter("password");
-        String confirmPassword = request.getParameter("confirmPassword");
-
-        if (password == null || !password.equals(confirmPassword)) {
-            response.getWriter().println("Passwords do not match.");
+        if (token == null || password == null || confirm == null || !password.equals(confirm)) {
+            req.setAttribute("error", "Passwords do not match or invalid request.");
+            req.setAttribute("token", token);
+            req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
             return;
         }
 
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            try (Connection con = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASS)) {
-                // 1️⃣ Check if token exists
-                String checkSql = "SELECT email FROM users WHERE reset_token=?";
-                PreparedStatement checkPs = con.prepareStatement(checkSql);
-                checkPs.setString(1, token);
-                ResultSet rs = checkPs.executeQuery();
+        if (password.length() < 6) {
+            req.setAttribute("error", "Password must be at least 6 characters.");
+            req.setAttribute("token", token);
+            req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
+            return;
+        }
 
-                if (rs.next()) {
-                    String email = rs.getString("email");
+        try (Connection conn = DBUtil.getConnection()) {
+            conn.setAutoCommit(false);
 
-                    // 2️⃣ Update password & clear token
-                    String updateSql = "UPDATE users SET password=?, reset_token=NULL WHERE email=?";
-                    PreparedStatement updatePs = con.prepareStatement(updateSql);
-                    updatePs.setString(1, password); // ⚠️ In real projects, hash the password (e.g., BCrypt)
-                    updatePs.setString(2, email);
-
-                    int rows = updatePs.executeUpdate();
-                    if (rows > 0) {
-                        response.getWriter().println("Password reset successfully! You can now log in.");
-                    } else {
-                        response.getWriter().println("Error updating password.");
-                    }
-                } else {
-                    response.getWriter().println("Invalid or expired token.");
-                }
+            // lock the token row to avoid race conditions
+            PreparedStatement ps = conn.prepareStatement(
+                    "SELECT id, user_id, expires_at, used FROM password_reset_tokens WHERE token = ? FOR UPDATE");
+            ps.setString(1, token);
+            ResultSet rs = ps.executeQuery();
+            if (!rs.next()) {
+                conn.rollback();
+                req.setAttribute("error", "Invalid or expired reset link.");
+                req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
+                return;
             }
+
+            int tokenId = rs.getInt("id");
+            int userId = rs.getInt("user_id");
+            boolean used = rs.getBoolean("used");
+            Timestamp expiresAt = rs.getTimestamp("expires_at");
+
+            if (used || expiresAt.toInstant().isBefore(Instant.now())) {
+                conn.rollback();
+                req.setAttribute("error", "This reset link has expired or already been used.");
+                req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
+                return;
+            }
+
+            // Hash and update password
+            String hashed = PasswordUtil.hash(password);
+            PreparedStatement updUser = conn.prepareStatement("UPDATE users SET password_hash = ? WHERE id = ?");
+            updUser.setString(1, hashed);
+            updUser.setInt(2, userId);
+            updUser.executeUpdate();
+
+            // mark token used
+            PreparedStatement mark = conn.prepareStatement("UPDATE password_reset_tokens SET used = true WHERE id = ?");
+            mark.setInt(1, tokenId);
+            mark.executeUpdate();
+
+            conn.commit();
+
+            // forward to success page or login
+            req.setAttribute("message", "Password updated. You can now log in.");
+            req.getRequestDispatcher("/login.jsp").forward(req, resp);
+
         } catch (Exception e) {
             e.printStackTrace();
-            response.getWriter().println("Error: " + e.getMessage());
+            req.setAttribute("error", "Server error.");
+            req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
         }
     }
 }
