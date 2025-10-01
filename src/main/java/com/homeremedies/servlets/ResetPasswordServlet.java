@@ -1,8 +1,6 @@
 package com.homeremedies.servlets;
 
 import com.homeremedies.util.DBUtil;
-import com.homeremedies.util.PasswordUtil;
-
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
@@ -52,7 +50,7 @@ public class ResetPasswordServlet extends HttpServlet {
                     "SELECT id, user_id, expires_at, used FROM password_reset_tokens WHERE token = ? FOR UPDATE");
             ps.setString(1, token);
             ResultSet rs = ps.executeQuery();
-            
+
             if (!rs.next()) {
                 conn.rollback();
                 req.setAttribute("error", "Invalid or expired reset link.");
@@ -71,7 +69,7 @@ public class ResetPasswordServlet extends HttpServlet {
                 req.getRequestDispatcher("/reset-password.jsp").forward(req, resp);
                 return;
             }
-            
+
             if (expiresAt.getTime() < System.currentTimeMillis()) {
                 conn.rollback();
                 req.setAttribute("error", "This reset link has expired. Please request a new one.");
@@ -79,10 +77,9 @@ public class ResetPasswordServlet extends HttpServlet {
                 return;
             }
 
-            // Hash the password and update in the 'password' column
-            String hashed = PasswordUtil.hash(password);
+            // Store plain text password
             PreparedStatement updUser = conn.prepareStatement("UPDATE users SET password = ? WHERE id = ?");
-            updUser.setString(1, hashed);
+            updUser.setString(1, password); // Plain text
             updUser.setInt(2, userId);
             int updated = updUser.executeUpdate();
 

@@ -23,6 +23,14 @@
                     </h1>
                 </a>
 
+                <!--Ratings-->
+                <div class="rating">
+                    <c:forEach var="i" begin="1" end="5">
+                        <span class="star" data-value="${i}" onclick="submitRating(${remedy.id}, ${i})">&#9733;</span>
+                    </c:forEach>
+                </div>
+
+
                 <nav class="nav" id="mainNav">
                     <a href="${pageContext.request.contextPath}/">
                         <i class="fas fa-home"></i> Home
@@ -84,7 +92,7 @@
 
                     <label for="title">
                         Remedy Title
-                        
+
                     </label>
                     <input id="title" name="title" type="text" required 
                            placeholder="Enter remedy title..." 

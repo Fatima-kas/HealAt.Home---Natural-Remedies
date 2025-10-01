@@ -1,13 +1,17 @@
 com\homeremedies\util\EmailUtil$1.class
+com\homeremedies\servlets\RemedyDetailServlet.class
 com\homeremedies\servlets\FavoritesServlet.class
 com\homeremedies\servlets\ResetPasswordServlet.class
 com\homeremedies\util\PasswordUtil.class
 com\homeremedies\homeremedies\resources\JakartaEE8Resource.class
 com\homeremedies\util\TokenUtil.class
 com\homeremedies\servlets\LoginServlet.class
+com\homeremedies\servlets\AdminRemedyServlet.class
 com\homeremedies\util\DBUtil.class
 com\homeremedies\servlets\AddRemedyServlet.class
 com\homeremedies\servlets\ForgotPasswordServlet.class
+com\homeremedies\servlets\SubmitRatingServlet.class
+com\homeremedies\util\RemedyValidator.class
 com\homeremedies\util\DBTestServlet.class
 com\homeremedies\util\EmailTest.class
 com\homeremedies\util\EmailUtil.class

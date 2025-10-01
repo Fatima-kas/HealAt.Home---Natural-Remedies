@@ -43,9 +43,9 @@ public class FavoritesServlet extends HttpServlet {
             return;
         }
 
-        // List favorites for this user
+        // List favorites for this user - REMOVED image_url
         List<Map<String, Object>> favs = new ArrayList<>();
-        String sql = "SELECT r.id, r.title, r.description, r.image_url, f.created_at " +
+        String sql = "SELECT r.id, r.title, r.description, r.category, f.created_at " +
                      "FROM favorites f JOIN remedies r ON f.remedy_id = r.id " +
                      "WHERE f.user_id = ? ORDER BY f.created_at DESC";
 
@@ -59,7 +59,7 @@ public class FavoritesServlet extends HttpServlet {
                     m.put("id", rs.getInt("id"));
                     m.put("title", rs.getString("title"));
                     m.put("description", rs.getString("description"));
-                    m.put("image_url", rs.getString("image_url"));
+                    m.put("category", rs.getString("category"));
                     m.put("created_at", rs.getTimestamp("created_at"));
                     favs.add(m);
                 }

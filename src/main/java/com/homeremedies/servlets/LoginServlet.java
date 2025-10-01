@@ -1,7 +1,6 @@
 package com.homeremedies.servlets;
 
 import com.homeremedies.util.DBUtil;
-import com.homeremedies.util.PasswordUtil;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
@@ -42,18 +41,8 @@ public class LoginServlet extends HttpServlet {
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     String dbPass = rs.getString("password");
-                    
-                    // Try BCrypt verification first (for hashed passwords)
-                    // If that fails, try plain text comparison (for old passwords)
-                    boolean isValid = false;
-                    try {
-                        isValid = PasswordUtil.verify(password, dbPass);
-                    } catch (Exception e) {
-                        // If BCrypt fails, it might be a plain text password
-                        isValid = dbPass.equals(password);
-                    }
-                    
-                    if (isValid) {
+
+                    if (dbPass.equals(password)) { // Simple plain text comparison
                         int userId = rs.getInt("id");
                         String name = rs.getString("name");
                         String email = rs.getString("email");
